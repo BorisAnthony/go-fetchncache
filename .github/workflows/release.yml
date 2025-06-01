@@ -58,11 +58,17 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
     
+    - name: List downloaded files
+      run: find . -name "fetchncache*" -type f
+    
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          */fetchncache*
+          linux-amd64/fetchncache
+          darwin-arm64/fetchncache
+          darwin-amd64/fetchncache
+          windows-amd64/fetchncache.exe
         generate_release_notes: true
         draft: false
         prerelease: false
