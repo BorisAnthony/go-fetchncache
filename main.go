@@ -16,6 +16,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var version = "dev" // Will be overridden by build flags
+
 // Target represents a URL target from the YAML config
 type Target struct {
 	Name string `yaml:"name"`
@@ -32,16 +34,22 @@ type Config struct {
 // parseFlags parses and validates command line flags
 func parseFlags() (string, bool, string) {
 	var configPath, jsonFormat string
-	var verbose bool
+	var verbose, showVersion bool
 
 	flag.StringVar(&configPath, "config", "", "Path to YAML config file")
 	flag.BoolVar(&verbose, "v", false, "Enable verbose mode")
 	flag.StringVar(&jsonFormat, "json-format", "original", "JSON formatting: 'original', 'pretty', 'minimized', or 'both'")
+	flag.BoolVar(&showVersion, "version", false, "Show version information")
 	flag.Parse()
+
+	if showVersion {
+		fmt.Printf("fetchncache version %s\n", version)
+		os.Exit(0)
+	}
 
 	if configPath == "" {
 		fmt.Fprintf(os.Stderr, "Error: --config flag is required\n")
-		fmt.Fprintf(os.Stderr, "Usage: %s --config <yaml-file> [-v] [--json-format original|pretty|minimized|both]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s --config <yaml-file> [-v] [--json-format original|pretty|minimized|both] [--version]\n", os.Args[0])
 		os.Exit(1)
 	}
 
