@@ -1,17 +1,19 @@
 package main
 
 import (
-	"encoding/json" // Package for JSON encoding and decoding
-	"flag"          // Package for command line flag parsing
-	"io"            // Package for I/O primitives, like reading response bodies
-	"log/slog"      // Package for structured logging
-	"net/http"      // Package for making HTTP requests
-	"os"            // Package for operating system functionality, like file operations
-	"path/filepath" // Package for file path manipulation
-	"strings"       // Package for string manipulation
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 
-	"github.com/hashicorp/go-retryablehttp" // Package for HTTP requests with retry logic
-	"gopkg.in/yaml.v3"                      // Package for YAML parsing
+	"github.com/hashicorp/go-retryablehttp"
+	"gopkg.in/yaml.v3"
 )
 
 // Target represents a URL target from the YAML config
@@ -27,16 +29,10 @@ type Config struct {
 	Targets []Target `yaml:"targets"`
 }
 
-func main() {
-	// Setup basic logger for startup errors (before config is loaded)
-	startupLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelError,
-	}))
-
-	// Parse command line flags
-	var configPath string
+// parseFlags parses and validates command line flags
+func parseFlags() (string, bool, string) {
+	var configPath, jsonFormat string
 	var verbose bool
-	var jsonFormat string
 
 	flag.StringVar(&configPath, "config", "", "Path to YAML config file")
 	flag.BoolVar(&verbose, "v", false, "Enable verbose mode")
@@ -44,216 +40,258 @@ func main() {
 	flag.Parse()
 
 	if configPath == "" {
-		startupLogger.Error("--config flag is required")
-		startupLogger.Error("Usage", "command", os.Args[0]+" --config <yaml-file> [-v] [--json-format original|pretty|minimized|both]")
+		fmt.Fprintf(os.Stderr, "Error: --config flag is required\n")
+		fmt.Fprintf(os.Stderr, "Usage: %s --config <yaml-file> [-v] [--json-format original|pretty|minimized|both]\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	// Validate json-format flag
-	if jsonFormat != "original" && jsonFormat != "pretty" && jsonFormat != "minimized" && jsonFormat != "both" {
-		startupLogger.Error("--json-format must be 'original', 'pretty', 'minimized', or 'both'")
-		os.Exit(1)
+	validFormats := []string{"original", "pretty", "minimized", "both"}
+	for _, format := range validFormats {
+		if jsonFormat == format {
+			return configPath, verbose, jsonFormat
+		}
 	}
 
-	// Read and parse YAML config file
-	configData, err := os.ReadFile(configPath)
-	if err != nil {
-		startupLogger.Error("Error reading config file", "path", configPath, "error", err)
-		os.Exit(1)
-	}
+	fmt.Fprintf(os.Stderr, "Error: --json-format must be one of: %s\n", strings.Join(validFormats, ", "))
+	os.Exit(1)
+	return "", false, "" // unreachable
+}
 
+// loadConfig reads and parses the YAML configuration file
+func loadConfig(path string) (Config, error) {
 	var config Config
+
+	configData, err := os.ReadFile(path)
+	if err != nil {
+		return config, fmt.Errorf("reading config file: %w", err)
+	}
+
 	err = yaml.Unmarshal(configData, &config)
 	if err != nil {
-		startupLogger.Error("Error parsing YAML config", "path", configPath, "error", err)
-		os.Exit(1)
+		return config, fmt.Errorf("parsing YAML config: %w", err)
 	}
 
-	// Setup structured logging
+	// Validate config
+	if err := validateConfig(config); err != nil {
+		return config, fmt.Errorf("invalid config: %w", err)
+	}
+
+	return config, nil
+}
+
+// validateConfig validates the configuration structure
+func validateConfig(config Config) error {
+	if len(config.Targets) == 0 {
+		return fmt.Errorf("no targets specified in config")
+	}
+
+	for i, target := range config.Targets {
+		if target.URL == "" {
+			return fmt.Errorf("target %d: URL is required", i+1)
+		}
+		if target.Path == "" {
+			return fmt.Errorf("target %d: Path is required", i+1)
+		}
+
+		// Validate URL format
+		if _, err := url.Parse(target.URL); err != nil {
+			return fmt.Errorf("target %d: invalid URL %q: %w", i+1, target.URL, err)
+		}
+	}
+
+	return nil
+}
+
+// setupLoggers creates and configures file and console loggers
+func setupLoggers(config Config, verbose bool) (*slog.Logger, *slog.Logger, func(), error) {
 	var fileLogger *slog.Logger
 	var consoleLogger *slog.Logger
+	var cleanup func()
 
-	// Setup file logger for warnings and errors
+	// Setup file logger
 	if config.LogFile != "" {
-		// Create log directory if it doesn't exist
 		logDir := filepath.Dir(config.LogFile)
-		err = os.MkdirAll(logDir, 0755)
-		if err != nil {
-			startupLogger.Error("Error creating log directory", "directory", logDir, "error", err)
-			os.Exit(1)
+		if err := os.MkdirAll(logDir, 0755); err != nil {
+			return nil, nil, nil, fmt.Errorf("creating log directory %q: %w", logDir, err)
 		}
 
-		// Open log file
 		logFile, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			startupLogger.Error("Error opening log file", "path", config.LogFile, "error", err)
-			os.Exit(1)
+			return nil, nil, nil, fmt.Errorf("opening log file %q: %w", config.LogFile, err)
 		}
 
-		// Create file logger for Warn/Error levels
 		fileLogger = slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
 			Level: slog.LevelWarn,
 		}))
+
+		cleanup = func() { logFile.Close() }
 	} else {
-		// If no log file specified, use stderr for errors
 		fileLogger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 			Level: slog.LevelWarn,
 		}))
+		cleanup = func() {}
 	}
 
-	// Create console logger for Info/Debug levels (only when verbose)
+	// Setup console logger
 	if verbose {
 		consoleLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
 		}))
-		consoleLogger.Info("Reading config file", "path", configPath)
 	}
 
-	if verbose {
+	return fileLogger, consoleLogger, cleanup, nil
+}
+
+// formatJSON handles JSON formatting based on the specified format
+func formatJSON(data []byte, format string, targetPath string) ([]byte, string, error) {
+	// Skip formatting if not JSON or format is original
+	if !strings.HasSuffix(strings.ToLower(targetPath), ".json") || format == "original" {
+		return data, "", nil
+	}
+
+	var jsonData interface{}
+	if err := json.Unmarshal(data, &jsonData); err != nil {
+		return data, "", fmt.Errorf("parsing JSON: %w", err)
+	}
+
+	switch format {
+	case "pretty":
+		formatted, err := json.MarshalIndent(jsonData, "", "  ")
+		return formatted, "pretty-printed", err
+
+	case "minimized":
+		formatted, err := json.Marshal(jsonData)
+		return formatted, "minimized", err
+
+	case "both":
+		return formatJSONBoth(jsonData, targetPath)
+
+	default:
+		return data, "", fmt.Errorf("unknown format: %s", format)
+	}
+}
+
+// formatJSONBoth creates both minimized and pretty-printed versions
+func formatJSONBoth(jsonData interface{}, targetPath string) ([]byte, string, error) {
+	minimized, err := json.Marshal(jsonData)
+	if err != nil {
+		return nil, "", err
+	}
+
+	pretty, err := json.MarshalIndent(jsonData, "", "  ")
+	if err != nil {
+		return minimized, "minimized", nil
+	}
+
+	prettyPath := strings.TrimSuffix(targetPath, ".json") + ".pp.json"
+	if err := writeFileWithDir(prettyPath, pretty); err != nil {
+		return minimized, "minimized", fmt.Errorf("writing pretty file: %w", err)
+	}
+
+	return minimized, "minimized (with pretty version)", nil
+}
+
+// writeFileWithDir creates the directory if needed and writes the file
+func writeFileWithDir(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("creating directory %q: %w", dir, err)
+	}
+
+	return os.WriteFile(path, data, 0644)
+}
+
+// processTarget processes a single target
+func processTarget(target Target, client *retryablehttp.Client, jsonFormat string, fileLogger, consoleLogger *slog.Logger) error {
+	if consoleLogger != nil {
+		consoleLogger.Info("Processing target", "name", target.Name, "url", target.URL)
+	}
+
+	// Fetch data
+	resp, err := client.Get(target.URL)
+	if err != nil {
+		return fmt.Errorf("fetching URL: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("received status %d", resp.StatusCode)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("reading response body: %w", err)
+	}
+
+	if consoleLogger != nil {
+		consoleLogger.Info("Successfully fetched data", "bytes", len(bodyBytes))
+	}
+
+	// Format JSON if needed
+	dataToWrite, formatDesc, err := formatJSON(bodyBytes, jsonFormat, target.Path)
+	if err != nil {
+		fileLogger.Warn("Could not format JSON, using original", "path", target.Path, "error", err)
+		dataToWrite = bodyBytes
+	} else if formatDesc != "" && consoleLogger != nil {
+		consoleLogger.Info("Formatted JSON", "format", formatDesc)
+	}
+
+	// Write file
+	if err := writeFileWithDir(target.Path, dataToWrite); err != nil {
+		return fmt.Errorf("writing file: %w", err)
+	}
+
+	if consoleLogger != nil {
+		consoleLogger.Info("Successfully wrote file", "path", target.Path)
+	}
+
+	return nil
+}
+
+func main() {
+	// Parse command line flags
+	configPath, verbose, jsonFormat := parseFlags()
+
+	// Load configuration
+	config, err := loadConfig(configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Setup loggers
+	fileLogger, consoleLogger, cleanup, err := setupLoggers(config, verbose)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error setting up loggers: %v\n", err)
+		os.Exit(1)
+	}
+	defer cleanup()
+
+	if consoleLogger != nil {
+		consoleLogger.Info("Reading config file", "path", configPath)
 		consoleLogger.Info("Found targets to process", "count", len(config.Targets))
 	}
 
-	// Create retryable HTTP client with default settings
+	// Create HTTP client
 	retryClient := retryablehttp.NewClient()
-	retryClient.RetryMax = 3 // Maximum number of retries
+	retryClient.RetryMax = 3
 	if !verbose {
-		retryClient.Logger = nil // Disable retry logging in non-verbose mode
+		retryClient.Logger = nil
 	}
 
 	// Process each target
 	for i, target := range config.Targets {
-		if verbose {
-			consoleLogger.Info("Processing target",
-				"index", i+1,
-				"total", len(config.Targets),
-				"name", target.Name,
-				"url", target.URL)
+		if consoleLogger != nil {
+			consoleLogger.Info("Processing target", "index", i+1, "total", len(config.Targets))
 		}
 
-		// Make HTTP GET request with retry logic
-		resp, err := retryClient.Get(target.URL)
-		if err != nil {
-			fileLogger.Error("Error fetching URL", "url", target.URL, "error", err)
+		if err := processTarget(target, retryClient, jsonFormat, fileLogger, consoleLogger); err != nil {
+			fileLogger.Error("Failed to process target", "name", target.Name, "url", target.URL, "error", err)
 			continue
-		}
-
-		// Check status code
-		if resp.StatusCode != http.StatusOK {
-			fileLogger.Error("Received non-OK status code",
-				"url", target.URL,
-				"status_code", resp.StatusCode)
-			resp.Body.Close()
-			continue
-		}
-
-		// Read response body
-		bodyBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			fileLogger.Error("Error reading response body", "url", target.URL, "error", err)
-			continue
-		}
-
-		if verbose {
-			consoleLogger.Info("Successfully fetched data", "bytes", len(bodyBytes))
-		}
-
-		// Format JSON if requested and file extension is .json
-		var dataToWrite []byte
-		if strings.HasSuffix(strings.ToLower(target.Path), ".json") && jsonFormat != "original" {
-			// Try to parse as JSON
-			var jsonData interface{}
-			if err := json.Unmarshal(bodyBytes, &jsonData); err != nil {
-				fileLogger.Warn("Could not parse JSON, writing original content", "path", target.Path, "error", err)
-				dataToWrite = bodyBytes
-			} else {
-				// Format the JSON based on the flag
-				switch jsonFormat {
-				case "pretty":
-					formattedBytes, err := json.MarshalIndent(jsonData, "", "  ")
-					if err != nil {
-						fileLogger.Warn("Could not format JSON, writing original content", "path", target.Path, "error", err)
-						dataToWrite = bodyBytes
-					} else {
-						dataToWrite = formattedBytes
-						if verbose {
-							consoleLogger.Info("Formatted JSON as pretty-printed")
-						}
-					}
-				case "minimized":
-					formattedBytes, err := json.Marshal(jsonData)
-					if err != nil {
-						fileLogger.Warn("Could not minimize JSON, writing original content", "path", target.Path, "error", err)
-						dataToWrite = bodyBytes
-					} else {
-						dataToWrite = formattedBytes
-						if verbose {
-							consoleLogger.Info("Formatted JSON as minimized")
-						}
-					}
-				case "both":
-					// Write minimized version to original path
-					minimizedBytes, err := json.Marshal(jsonData)
-					if err != nil {
-						fileLogger.Warn("Could not minimize JSON, writing original content", "path", target.Path, "error", err)
-						dataToWrite = bodyBytes
-					} else {
-						dataToWrite = minimizedBytes
-						if verbose {
-							consoleLogger.Info("Formatted JSON as minimized")
-						}
-					}
-
-					// Write pretty-printed version to .pp.json file
-					prettyBytes, err := json.MarshalIndent(jsonData, "", "  ")
-					if err != nil {
-						fileLogger.Warn("Could not format pretty JSON", "path", target.Path, "error", err)
-					} else {
-						// Create pretty-printed filename by adding .pp before .json
-						prettyPath := strings.TrimSuffix(target.Path, ".json") + ".pp.json"
-
-						// Create directory for pretty file if needed
-						prettyDir := filepath.Dir(prettyPath)
-						err = os.MkdirAll(prettyDir, 0755)
-						if err != nil {
-							fileLogger.Error("Error creating directory", "directory", prettyDir, "error", err)
-						} else {
-							// Write pretty-printed file
-							err = os.WriteFile(prettyPath, prettyBytes, 0644)
-							if err != nil {
-								fileLogger.Error("Error writing pretty JSON file", "path", prettyPath, "error", err)
-							} else if verbose {
-								consoleLogger.Info("Wrote pretty-printed version", "path", prettyPath)
-							}
-						}
-					}
-				}
-			}
-		} else {
-			dataToWrite = bodyBytes
-		}
-
-		// Create directory if it doesn't exist
-		dir := filepath.Dir(target.Path)
-		err = os.MkdirAll(dir, 0755)
-		if err != nil {
-			fileLogger.Error("Error creating directory", "directory", dir, "error", err)
-			continue
-		}
-
-		// Write to file
-		err = os.WriteFile(target.Path, dataToWrite, 0644)
-		if err != nil {
-			fileLogger.Error("Error writing to file", "path", target.Path, "error", err)
-			continue
-		}
-
-		if verbose {
-			consoleLogger.Info("Successfully wrote file", "path", target.Path)
 		}
 	}
 
-	if verbose {
+	if consoleLogger != nil {
 		consoleLogger.Info("Application finished successfully!")
 	}
 }
