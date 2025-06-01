@@ -1,6 +1,12 @@
 # Go FetchNCache
 
 Fast 'n lightweight, does what it says.
+
+Which is given a URL and a path, will fetch that URL and write the response to the given path.
+
+My usecase was caching JSON response from an API so it assumes JSON, but it'll work with anything if you don't set the `--json-format` flag.
+
+
 - Implements `hashicorp/go-retryablehttp` default retry & backoff strategy
 - `log/slog` for **console** (_`debug` & `info` in verbose mode_) and **file** (_`warning` & `error` always_) logging
 
