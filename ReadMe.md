@@ -1,6 +1,6 @@
 # Go FetchNCache
 
-Fast 'n' lightweight, does what it says.
+Fast 'n lightweight, does what it says.
 - Implements `hashicorp/go-retryablehttp` default retry & backoff strategy
 - `log/slog` for **console** (_`debug` & `info` in verbose mode_) and **file** (_`warning` & `error` always_) logging
 
