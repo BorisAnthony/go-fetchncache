@@ -1,0 +1,5 @@
+logfile: "./log/fetchncache.log"
+targets:
+  - name: "github-api-user"
+    url: "https://api.github.com/users/octocat"
+    path: "./cache/github-user.json"
