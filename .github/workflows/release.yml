@@ -58,17 +58,28 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
     
-    - name: List downloaded files
-      run: find . -name "fetchncache*" -type f
+    - name: List downloaded files structure
+      run: |
+        echo "=== Complete directory structure ==="
+        find . -type f -name "*fetchncache*" | sort
+        echo "=== All directories ==="
+        find . -type d | sort
+    
+    - name: Reorganize binaries
+      run: |
+        mkdir -p release-assets
+        # Move all binaries to a flat structure with platform prefixes
+        find . -name "fetchncache" -path "*/linux-amd64/*" -exec cp {} release-assets/fetchncache-linux-amd64 \;
+        find . -name "fetchncache" -path "*/darwin-arm64/*" -exec cp {} release-assets/fetchncache-darwin-arm64 \;
+        find . -name "fetchncache" -path "*/darwin-amd64/*" -exec cp {} release-assets/fetchncache-darwin-amd64 \;
+        find . -name "fetchncache.exe" -path "*/windows-amd64/*" -exec cp {} release-assets/fetchncache-windows-amd64.exe \;
+        echo "=== Release assets ==="
+        ls -la release-assets/
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: |
-          linux-amd64/fetchncache
-          darwin-arm64/fetchncache
-          darwin-amd64/fetchncache
-          windows-amd64/fetchncache.exe
+        files: release-assets/*
         generate_release_notes: true
         draft: false
         prerelease: false
