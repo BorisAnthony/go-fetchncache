@@ -1,4 +1,4 @@
-.PHONY: build-linux build-macos run clean test
+.PHONY: build-linux build-macos run-dev test
 
 build-linux:
 	GOOS=linux GOARCH=amd64 go build -o ./dist/linux-amd64/fetchncache main.go
@@ -6,11 +6,8 @@ build-linux:
 build-macos:
 	GOOS=darwin GOARCH=arm64 go build -o ./dist/darwin-arm64/fetchncache main.go
 
-run:
+run-dev:
 	go run main.go --config ./config/example.yaml --json-format both -v
-
-clean:
-	rm -rf dist/
 
 test:
 	go test ./...

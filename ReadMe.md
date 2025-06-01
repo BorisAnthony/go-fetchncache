@@ -4,20 +4,23 @@ Fast 'n lightweight, does what it says.
 - Implements `hashicorp/go-retryablehttp` default retry & backoff strategy
 - `log/slog` for **console** (_`debug` & `info` in verbose mode_) and **file** (_`warning` & `error` always_) logging
 
+
 ## Compile
+
 
 ### macOS
 
-Compiling locally for local use.
+(GOOS=darwin GOARCH=arm64)
 
-`go build -o ./dist/macos/fetchncache main.go`
+`build-macos`
 
 
 ### Linux
 
-Compile for Ubuntu VPS. Compiled app tested on Dreamhost and Hostinger.
+(GOOS=linux GOARCH=amd64)
 
-`GOOS=linux GOARCH=amd64 go build -o ./dist/linux-amd64/fetchncache main.go`
+`build-linux`
+
 
 ## Config
 
