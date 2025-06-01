@@ -1,4 +1,4 @@
-module fetchncache
+module github.com/BorisAnthony/go-fetchncache
 
 go 1.24.3
 
