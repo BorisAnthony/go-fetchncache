@@ -13,16 +13,20 @@ jobs:
         include:
           - goos: linux
             goarch: amd64
-            output: fetchncache-linux-amd64
+            platform: linux-amd64
+            binary_name: fetchncache
           - goos: darwin
             goarch: arm64
-            output: fetchncache-darwin-arm64
+            platform: darwin-arm64
+            binary_name: fetchncache
           - goos: darwin
             goarch: amd64
-            output: fetchncache-darwin-amd64
+            platform: darwin-amd64
+            binary_name: fetchncache
           - goos: windows
             goarch: amd64
-            output: fetchncache-windows-amd64.exe
+            platform: windows-amd64
+            binary_name: fetchncache.exe
 
     steps:
     - uses: actions/checkout@v4
@@ -38,13 +42,14 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
       run: |
-        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o ${{ matrix.output }} ./cmd/fetchncache
+        mkdir -p ${{ matrix.platform }}
+        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o ${{ matrix.platform }}/${{ matrix.binary_name }} ./cmd/fetchncache
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.output }}
-        path: ${{ matrix.output }}
+        name: ${{ matrix.platform }}
+        path: ${{ matrix.platform }}/
 
   release:
     needs: build
@@ -57,7 +62,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          */fetchncache-*
+          */fetchncache*
         generate_release_notes: true
         draft: false
         prerelease: false
