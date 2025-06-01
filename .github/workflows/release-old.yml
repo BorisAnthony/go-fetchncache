@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            platform: linux-amd64
+            binary_name: fetchncache
+          - goos: darwin
+            goarch: arm64
+            platform: darwin-arm64
+            binary_name: fetchncache
+          - goos: darwin
+            goarch: amd64
+            platform: darwin-amd64
+            binary_name: fetchncache
+          - goos: windows
+            goarch: amd64
+            platform: windows-amd64
+            binary_name: fetchncache.exe
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+        cache: true
+    
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        mkdir -p ${{ matrix.platform }}
+        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o ${{ matrix.platform }}/${{ matrix.binary_name }} ./cmd/fetchncache
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.platform }}
+        path: ${{ matrix.platform }}/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+    
+    - name: List downloaded files structure
+      run: |
+        echo "=== Complete directory structure ==="
+        find . -type f -name "*fetchncache*" | sort
+        echo "=== All directories ==="
+        find . -type d | sort
+    
+    - name: Create platform-specific archives
+      run: |
+        mkdir -p release-assets
+        
+        # Linux AMD64
+        if [ -f linux-amd64/linux-amd64/fetchncache ]; then
+          tar -czf release-assets/fetchncache-linux-amd64.tar.gz -C linux-amd64/linux-amd64 fetchncache
+        fi
+        
+        # Darwin ARM64
+        if [ -f darwin-arm64/darwin-arm64/fetchncache ]; then
+          tar -czf release-assets/fetchncache-darwin-arm64.tar.gz -C darwin-arm64/darwin-arm64 fetchncache
+        fi
+        
+        # Darwin AMD64  
+        if [ -f darwin-amd64/darwin-amd64/fetchncache ]; then
+          tar -czf release-assets/fetchncache-darwin-amd64.tar.gz -C darwin-amd64/darwin-amd64 fetchncache
+        fi
+        
+        # Windows AMD64
+        if [ -f windows-amd64/windows-amd64/fetchncache.exe ]; then
+          zip release-assets/fetchncache-windows-amd64.zip -j windows-amd64/windows-amd64/fetchncache.exe
+        fi
+        
+        echo "=== Release assets ==="
+        ls -la release-assets/
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release-assets/*
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
