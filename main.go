@@ -149,7 +149,7 @@ func formatJSON(data []byte, format string, targetPath string) ([]byte, string, 
 		return data, "", nil
 	}
 
-	var jsonData interface{}
+	var jsonData any
 	if err := json.Unmarshal(data, &jsonData); err != nil {
 		return data, "", fmt.Errorf("parsing JSON: %w", err)
 	}
@@ -172,7 +172,7 @@ func formatJSON(data []byte, format string, targetPath string) ([]byte, string, 
 }
 
 // formatJSONBoth creates both minimized and pretty-printed versions
-func formatJSONBoth(jsonData interface{}, targetPath string) ([]byte, string, error) {
+func formatJSONBoth(jsonData any, targetPath string) ([]byte, string, error) {
 	minimized, err := json.Marshal(jsonData)
 	if err != nil {
 		return nil, "", err
