@@ -1,0 +1,8 @@
+logfile: "./log/fetchncache.log"
+targets:
+  - name: "test-invalid-headers"
+    url: "https://api.github.com/users/octocat" 
+    path: "./cache/test.json"
+    headers:
+      - "valid-header: valid-value"
+      - "invalid-header-no-colon-space"

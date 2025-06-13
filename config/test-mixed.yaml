@@ -1,0 +1,8 @@
+logfile: "./log/fetchncache-test.log"
+targets:
+  - name: "test-html"
+    url: "https://httpbin.org/html"
+    path: "./cache/test.html"
+  - name: "test-json"
+    url: "https://httpbin.org/json"
+    path: "./cache/test.json"

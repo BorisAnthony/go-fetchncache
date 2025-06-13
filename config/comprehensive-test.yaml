@@ -1,0 +1,17 @@
+logfile: "./log/fetchncache-comprehensive.log"
+targets:
+  - name: "github-without-headers"
+    url: "https://api.github.com/users/octocat"
+    path: "./cache/github-no-headers.json"
+  - name: "httpbin-with-headers" 
+    url: "https://httpbin.org/headers"
+    path: "./cache/httpbin-headers.json"
+    headers:
+      - "User-Agent: fetchncache-test/1.0" 
+      - "X-Custom-Header: test-value"
+      - "Accept: application/json"
+  - name: "github-with-custom-agent"
+    url: "https://api.github.com/users/github" 
+    path: "./cache/github-custom-agent.json"
+    headers:
+      - "User-Agent: fetchncache-custom/1.0"
