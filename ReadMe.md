@@ -4,28 +4,40 @@ Fast 'n lightweight, does what it says.
 
 Given a URL and a path, will fetch that URL and write the response to the given path.
 
-My usecase was caching JSON response from an API so it assumes JSON, but it'll work with anything if you don't set the `--json-format` flag.
+My usecase was caching JSON responses from API so it assumes JSON, but it'll work with anything if you don't set the `--json-format` flag.
 
 
 - Implements `hashicorp/go-retryablehttp` default retry & backoff strategy
 - `log/slog` for **console** (_`debug` & `info` in verbose mode_) and **file** (_`warning` & `error` always_) logging
 
 
+## Installation
+
+Grab a [compiled binary from the releases](https://github.com/BorisAnthony/go-fetchncache/releases), decompress and place wherever you put your go binaries ( e.g.: `/usr/local/bin` ).
+
+Make sure to give it executable permissions:
+- `chmod +x /path/to/fetchncache`
+
+On macOS, if you've downloaded the binary, you probably need to remove the quarantine:
+- `xattr -d com.apple.quarantine /path/to/fetchncache`
+
+
 ## Compile
 
+Tip: See the Makefile for more target options.
 
 ### macOS
 
 (GOOS=darwin GOARCH=arm64)
 
-`build-macos`
+`make build-macos`
 
 
 ### Linux
 
 (GOOS=linux GOARCH=amd64)
 
-`build-linux`
+`make build-linux`
 
 
 ## Config
