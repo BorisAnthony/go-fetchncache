@@ -30,7 +30,26 @@ My usecase was caching JSON response from an API so it assumes JSON, but it'll w
 
 ## Config
 
-See YAML file in `./config`
+Configuration is done via YAML files with the following structure:
+
+```yaml
+logfile: "./log/log.log"
+targets:
+  - name: "github-without-headers"
+    url: "https://api.github.com/users/octocat"
+    path: "./cache/github-no-headers.json"
+  - name: "httpbin-with-headers" 
+    url: "https://httpbin.org/headers"
+    path: "./cache/httpbin-headers.json"
+    headers:
+      - "User-Agent: fetchncache-test/1.0" 
+      - "X-Custom-Header: test-value"
+      - "Accept: application/json"
+```
+
+`headers` are optional.
+
+See more example YAML files in `./config`.
 
 
 ## Usage
