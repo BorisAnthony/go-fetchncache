@@ -20,9 +20,10 @@ var version = "dev" // Will be overridden by build flags
 
 // Target represents a URL target from the YAML config
 type Target struct {
-	Name string `yaml:"name"`
-	URL  string `yaml:"url"`
-	Path string `yaml:"path"`
+	Name    string   `yaml:"name"`
+	URL     string   `yaml:"url"`
+	Path    string   `yaml:"path"`
+	Headers []string `yaml:"headers,omitempty"`
 }
 
 // Config represents the YAML configuration structure
@@ -105,9 +106,38 @@ func validateConfig(config Config) error {
 		if _, err := url.Parse(target.URL); err != nil {
 			return fmt.Errorf("target %d: invalid URL %q: %w", i+1, target.URL, err)
 		}
+
+		// Validate headers format
+		if _, err := parseHeaders(target.Headers); err != nil {
+			return fmt.Errorf("target %d: %w", i+1, err)
+		}
 	}
 
 	return nil
+}
+
+// parseHeaders parses header strings in "name: value" format into http.Header
+func parseHeaders(headerStrings []string) (http.Header, error) {
+	headers := make(http.Header)
+	for _, headerStr := range headerStrings {
+		if headerStr == "" {
+			continue // Skip empty header strings
+		}
+
+		parts := strings.SplitN(headerStr, ": ", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid header format: %q (expected 'name: value')", headerStr)
+		}
+
+		name := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if name == "" {
+			return nil, fmt.Errorf("empty header name in: %q", headerStr)
+		}
+
+		headers.Set(name, value)
+	}
+	return headers, nil
 }
 
 // setupLoggers creates and configures file and console loggers
@@ -215,8 +245,33 @@ func processTarget(target Target, client *retryablehttp.Client, jsonFormat strin
 		consoleLogger.Info("Processing target", "name", target.Name, "url", target.URL)
 	}
 
+	// Create HTTP request
+	req, err := retryablehttp.NewRequest("GET", target.URL, nil)
+	if err != nil {
+		return fmt.Errorf("creating request: %w", err)
+	}
+
+	// Set custom headers if specified
+	if len(target.Headers) > 0 {
+		customHeaders, err := parseHeaders(target.Headers)
+		if err != nil {
+			return fmt.Errorf("parsing headers: %w", err)
+		}
+
+		// Copy custom headers to the request
+		for name, values := range customHeaders {
+			for _, value := range values {
+				req.Header.Set(name, value)
+			}
+		}
+
+		if consoleLogger != nil {
+			consoleLogger.Info("Set custom headers", "count", len(customHeaders))
+		}
+	}
+
 	// Fetch data
-	resp, err := client.Get(target.URL)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("fetching URL: %w", err)
 	}
