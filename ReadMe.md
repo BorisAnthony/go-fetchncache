@@ -82,13 +82,27 @@ path:
     pattern: "DateTime-JST-slug"
 ```
 
-**Pattern Format**: `Component-Timezone-Processing`
+**Pattern Format**: `DateTimeFormat-Timezone-Processing`
 
-- **DateTime**: Current timestamp in `YYYY-MM-DD-HH-MM-SS` format
-- **Timezone**: `JST` (Asia/Tokyo) or `UTC`
-- **Processing**: `slug` (lowercase with timezone suffix)
+**Supported DateTime Formats** (Go time layout constants):
+- **DateTime**: `2006-01-02 15:04:05` → `2025-01-28-15-30-45`
+- **DateOnly**: `2006-01-02` → `2025-01-28`  
+- **TimeOnly**: `15:04:05` → `15-30-45`
+- **RFC3339**: `2006-01-02T15:04:05Z07:00` → `2025-01-28t15-30-45z07-00`
+- **Kitchen**: `3:04PM` → `3-04pm`
+- **Stamp**: `Jan _2 15:04:05` → `jan-2-15-04-05`
 
-**Example output**: `./cache/data-2025-01-28-15-30-45-jst.json`
+**Timezone Options**:
+- **JST**: Asia/Tokyo timezone
+- **UTC**: Coordinated Universal Time  
+
+**Processing Options**:
+- **slug**: Lowercase, filename-safe formatting with timezone suffix
+
+**Example outputs**:
+- `DateTime-JST-slug` → `./cache/data-2025-01-28-15-30-45-jst.json`
+- `DateOnly-UTC-slug` → `./cache/data-2025-01-28-utc.json`
+- `Kitchen-JST-slug` → `./cache/data-3-04pm-jst.json`
 
 `headers` are optional.
 

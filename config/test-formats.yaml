@@ -1,0 +1,17 @@
+logfile: "./log/fetchncache-test.log"
+targets:
+  - name: "test-dateonly"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/dateonly-{pattern}.json"
+        pattern: "DateOnly-JST-slug"
+  - name: "test-timeonly"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/timeonly-{pattern}.json"
+        pattern: "TimeOnly-JST-slug"
+  - name: "test-kitchen"  
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/kitchen-{pattern}.json"
+        pattern: "Kitchen-UTC-slug"

@@ -63,13 +63,36 @@ func generatePatternValue(pattern string) (string, error) {
 		return "", fmt.Errorf("unsupported timezone: %s", parts[1])
 	}
 
-	// 3. Format datetime
-	formatted := now.Format(parts[0])
+	// 3. Format datetime using Go time layout constants
+	var layout string
+	switch parts[0] {
+	case "DateTime":
+		layout = time.DateTime // "2006-01-02 15:04:05"
+	case "DateOnly":
+		layout = time.DateOnly // "2006-01-02"
+	case "TimeOnly":
+		layout = time.TimeOnly // "15:04:05"
+	case "RFC3339":
+		layout = time.RFC3339 // "2006-01-02T15:04:05Z07:00"
+	case "Kitchen":
+		layout = time.Kitchen // "3:04PM"
+	case "Stamp":
+		layout = time.Stamp // "Jan _2 15:04:05"
+	case "DATETIME_SIMPLE_FS":
+		layout = "2006-01-02 1504" // "2006-01-02 1504"
+	default:
+		return "", fmt.Errorf("unsupported datetime format: %s (supported: DateTime, DateOnly, TimeOnly, RFC3339, Kitchen, Stamp, DATETIME_SIMPLE_FS)", parts[0])
+	}
+	
+	formatted := now.Format(layout)
 
 	// 4. Apply processing
 	switch parts[2] {
 	case "slug":
-		formatted = strings.ToLower(formatted + "-" + strings.ToLower(parts[1]))
+		// Make filename-safe: replace spaces and colons, convert to lowercase
+		// formatted = strings.ReplaceAll(formatted, " ", "-")
+		formatted = strings.ReplaceAll(formatted, ":", "-")
+		// formatted = strings.ToLower(formatted + "-" + strings.ToLower(parts[1]))
 	default:
 		return "", fmt.Errorf("unsupported processing: %s", parts[2])
 	}
@@ -228,9 +251,12 @@ func validatePattern(pattern string) error {
 		return fmt.Errorf("pattern must have 3 components: DateTime-Timezone-Processing")
 	}
 
-	// Validate components
-	if parts[0] != "DateTime" {
-		return fmt.Errorf("first pattern component must be 'DateTime', got: %s", parts[0])
+	// Validate datetime format component
+	switch parts[0] {
+	case "DateTime", "DateOnly", "TimeOnly", "RFC3339", "Kitchen", "Stamp", "DATETIME_SIMPLE_FS":
+		// Valid datetime formats
+	default:
+		return fmt.Errorf("unsupported datetime format: %s (supported: DateTime, DateOnly, TimeOnly, RFC3339, Kitchen, Stamp, DATETIME_SIMPLE_FS)", parts[0])
 	}
 
 	switch parts[1] {
