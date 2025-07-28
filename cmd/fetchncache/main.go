@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"gopkg.in/yaml.v3"
@@ -18,18 +19,110 @@ import (
 
 var version = "dev" // Will be overridden by build flags
 
+// PathConfig represents a dynamic path configuration
+type PathConfig struct {
+	String  string `yaml:"string"`
+	Pattern string `yaml:"pattern"`
+}
+
 // Target represents a URL target from the YAML config
 type Target struct {
-	Name    string   `yaml:"name"`
-	URL     string   `yaml:"url"`
-	Path    string   `yaml:"path"`
-	Headers []string `yaml:"headers,omitempty"`
+	Name    string      `yaml:"name"`
+	URL     string      `yaml:"url"`
+	Path    interface{} `yaml:"path"` // Can be string or []PathConfig
+	Headers []string    `yaml:"headers,omitempty"`
 }
 
 // Config represents the YAML configuration structure
 type Config struct {
 	LogFile string   `yaml:"logfile"`
 	Targets []Target `yaml:"targets"`
+}
+
+// generatePatternValue generates a timestamp string based on the pattern
+func generatePatternValue(pattern string) (string, error) {
+	parts := strings.Split(pattern, "-")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("pattern must have 3 components: DateTime-Timezone-Processing")
+	}
+
+	// 1. Generate timestamp
+	now := time.Now()
+
+	// 2. Apply timezone
+	switch parts[1] {
+	case "JST":
+		loc, err := time.LoadLocation("Asia/Tokyo")
+		if err != nil {
+			return "", fmt.Errorf("loading JST timezone: %w", err)
+		}
+		now = now.In(loc)
+	case "UTC":
+		now = now.UTC()
+	default:
+		return "", fmt.Errorf("unsupported timezone: %s", parts[1])
+	}
+
+	// 3. Format datetime
+	formatted := now.Format(parts[0])
+
+	// 4. Apply processing
+	switch parts[2] {
+	case "slug":
+		formatted = strings.ToLower(formatted + "-" + strings.ToLower(parts[1]))
+	default:
+		return "", fmt.Errorf("unsupported processing: %s", parts[2])
+	}
+
+	return formatted, nil
+}
+
+// GetResolvedPath resolves the target path, handling both static strings and dynamic patterns
+func (t *Target) GetResolvedPath() (string, error) {
+	switch v := t.Path.(type) {
+	case string:
+		// Legacy string path
+		return v, nil
+	case []interface{}:
+		// New pattern-based path
+		if len(v) != 1 {
+			return "", fmt.Errorf("path array must contain exactly one configuration object")
+		}
+
+		configMap, ok := v[0].(map[string]interface{})
+		if !ok {
+			return "", fmt.Errorf("path configuration must be an object")
+		}
+
+		template, hasString := configMap["string"].(string)
+		pattern, hasPattern := configMap["pattern"].(string)
+
+		if !hasString || !hasPattern {
+			return "", fmt.Errorf("path configuration must have 'string' and 'pattern' fields")
+		}
+
+		if !strings.Contains(template, "{pattern}") {
+			return "", fmt.Errorf("path template must contain {pattern} placeholder")
+		}
+
+		// Generate pattern value
+		patternValue, err := generatePatternValue(pattern)
+		if err != nil {
+			return "", fmt.Errorf("generating pattern value: %w", err)
+		}
+
+		// Replace placeholder with generated value
+		resolvedPath := strings.ReplaceAll(template, "{pattern}", patternValue)
+		return resolvedPath, nil
+	default:
+		return "", fmt.Errorf("path must be string or configuration object")
+	}
+}
+
+// IsStaticPath returns true if this target uses a static string path
+func (t *Target) IsStaticPath() bool {
+	_, ok := t.Path.(string)
+	return ok
 }
 
 // parseFlags parses and validates command line flags
@@ -88,6 +181,75 @@ func loadConfig(path string) (Config, error) {
 	return config, nil
 }
 
+// validatePathConfig validates a path configuration (string or pattern-based)
+func validatePathConfig(pathConfig interface{}) error {
+	switch v := pathConfig.(type) {
+	case string:
+		// Legacy string path - always valid if not empty
+		if v == "" {
+			return fmt.Errorf("path cannot be empty")
+		}
+		return nil
+	case []interface{}:
+		if len(v) != 1 {
+			return fmt.Errorf("path array must contain exactly one configuration object")
+		}
+
+		configMap, ok := v[0].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("path configuration must be an object")
+		}
+
+		template, hasString := configMap["string"].(string)
+		pattern, hasPattern := configMap["pattern"].(string)
+
+		if !hasString || !hasPattern {
+			return fmt.Errorf("path configuration must have 'string' and 'pattern' fields")
+		}
+
+		if template == "" {
+			return fmt.Errorf("path template cannot be empty")
+		}
+
+		if !strings.Contains(template, "{pattern}") {
+			return fmt.Errorf("path template must contain {pattern} placeholder")
+		}
+
+		return validatePattern(pattern)
+	default:
+		return fmt.Errorf("path must be string or configuration object")
+	}
+}
+
+// validatePattern validates a pattern string format
+func validatePattern(pattern string) error {
+	parts := strings.Split(pattern, "-")
+	if len(parts) != 3 {
+		return fmt.Errorf("pattern must have 3 components: DateTime-Timezone-Processing")
+	}
+
+	// Validate components
+	if parts[0] != "DateTime" {
+		return fmt.Errorf("first pattern component must be 'DateTime', got: %s", parts[0])
+	}
+
+	switch parts[1] {
+	case "JST", "UTC":
+		// Valid timezones
+	default:
+		return fmt.Errorf("unsupported timezone: %s (supported: JST, UTC)", parts[1])
+	}
+
+	switch parts[2] {
+	case "slug":
+		// Valid processing
+	default:
+		return fmt.Errorf("unsupported processing: %s (supported: slug)", parts[2])
+	}
+
+	return nil
+}
+
 // validateConfig validates the configuration structure
 func validateConfig(config Config) error {
 	if len(config.Targets) == 0 {
@@ -98,8 +260,13 @@ func validateConfig(config Config) error {
 		if target.URL == "" {
 			return fmt.Errorf("target %d: URL is required", i+1)
 		}
-		if target.Path == "" {
+		if target.Path == nil {
 			return fmt.Errorf("target %d: Path is required", i+1)
+		}
+
+		// Validate path format
+		if err := validatePathConfig(target.Path); err != nil {
+			return fmt.Errorf("target %d: %w", i+1, err)
 		}
 
 		// Validate URL format
@@ -241,8 +408,14 @@ func writeFileWithDir(path string, data []byte) error {
 
 // processTarget processes a single target
 func processTarget(target Target, client *retryablehttp.Client, jsonFormat string, fileLogger, consoleLogger *slog.Logger) error {
+	// Resolve path first
+	resolvedPath, err := target.GetResolvedPath()
+	if err != nil {
+		return fmt.Errorf("resolving path: %w", err)
+	}
+
 	if consoleLogger != nil {
-		consoleLogger.Info("Processing target", "name", target.Name, "url", target.URL)
+		consoleLogger.Info("Processing target", "name", target.Name, "url", target.URL, "path", resolvedPath)
 	}
 
 	// Create HTTP request
@@ -291,21 +464,21 @@ func processTarget(target Target, client *retryablehttp.Client, jsonFormat strin
 	}
 
 	// Format JSON if needed
-	dataToWrite, formatDesc, err := formatJSON(bodyBytes, jsonFormat, target.Path)
+	dataToWrite, formatDesc, err := formatJSON(bodyBytes, jsonFormat, resolvedPath)
 	if err != nil {
-		fileLogger.Warn("Could not format JSON, using original", "path", target.Path, "error", err)
+		fileLogger.Warn("Could not format JSON, using original", "path", resolvedPath, "error", err)
 		dataToWrite = bodyBytes
 	} else if formatDesc != "" && consoleLogger != nil {
 		consoleLogger.Info("Formatted JSON", "format", formatDesc)
 	}
 
 	// Write file
-	if err := writeFileWithDir(target.Path, dataToWrite); err != nil {
+	if err := writeFileWithDir(resolvedPath, dataToWrite); err != nil {
 		return fmt.Errorf("writing file: %w", err)
 	}
 
 	if consoleLogger != nil {
-		consoleLogger.Info("Successfully wrote file", "path", target.Path)
+		consoleLogger.Info("Successfully wrote file", "path", resolvedPath)
 	}
 
 	return nil

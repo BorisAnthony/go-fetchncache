@@ -57,7 +57,38 @@ targets:
       - "User-Agent: fetchncache-test/1.0" 
       - "X-Custom-Header: test-value"
       - "Accept: application/json"
+  - name: "dated-archive-example"
+    url: "https://api.github.com/users/github"
+    path: 
+      - string: "./cache/github-{pattern}.json"
+        pattern: "DateTime-JST-slug"
+    headers:
+      - "User-Agent: fetchncache/1.0"
 ```
+
+### Path Configuration
+
+Paths can be configured in two ways:
+
+#### Static Paths (Legacy)
+```yaml
+path: "./cache/data.json"
+```
+
+#### Dynamic Path Patterns (New)
+```yaml
+path: 
+  - string: "./cache/data-{pattern}.json"
+    pattern: "DateTime-JST-slug"
+```
+
+**Pattern Format**: `Component-Timezone-Processing`
+
+- **DateTime**: Current timestamp in `YYYY-MM-DD-HH-MM-SS` format
+- **Timezone**: `JST` (Asia/Tokyo) or `UTC`
+- **Processing**: `slug` (lowercase with timezone suffix)
+
+**Example output**: `./cache/data-2025-01-28-15-30-45-jst.json`
 
 `headers` are optional.
 
@@ -73,7 +104,20 @@ See more example YAML files in `./config`.
 `--json-format`: one of `original`, `pretty`, `minimized` or `both`
 - if called without, will default to `original`
 - `both` will generate both `pretty` and `minimized`, adding a "-pp" suffix to the pp'ed one.
+- works with both static paths and dynamic path patterns
 
-_**Example**_
+### Examples
 
-`./fetchncache --config ./config/example.yaml -v --json-format both`
+#### Basic usage with static paths:
+```bash
+./fetchncache --config ./config/example.yaml -v --json-format both
+```
+
+#### With dynamic path patterns:
+```bash
+./fetchncache --config ./config/comprehensive-test.yaml -v --json-format both
+```
+
+This will create timestamped files like:
+- `./cache/data-2025-01-28-15-30-45-jst.json` (minimized)
+- `./cache/data-2025-01-28-15-30-45-jst.pp.json` (pretty-printed)

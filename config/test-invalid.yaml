@@ -1,0 +1,7 @@
+logfile: "./log/fetchncache-test.log"
+targets:
+  - name: "test-invalid-pattern"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/invalid-missing-placeholder.json"
+        pattern: "DateTime-JST-slug"

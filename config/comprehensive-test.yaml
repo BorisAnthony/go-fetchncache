@@ -15,3 +15,10 @@ targets:
     path: "./cache/github-custom-agent.json"
     headers:
       - "User-Agent: fetchncache-custom/1.0"
+  - name: "github-with-dated-archive"
+    url: "https://api.github.com/users/github" 
+    path: 
+      - string: "./cache/github-custom-agent-{pattern}.json"
+        pattern: "DateTime-JST-slug"
+    headers:
+      - "User-Agent: fetchncache-custom/1.0"
