@@ -1,4 +1,7 @@
-_archive/
+.DS_Store
+.archive/
+.claude/
 cache/
-log/
 dist/
+log/
+CLAUDE.md
