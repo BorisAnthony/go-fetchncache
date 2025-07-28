@@ -120,18 +120,44 @@ See more example YAML files in `./config`.
 - `both` will generate both `pretty` and `minimized`, adding a "-pp" suffix to the pp'ed one.
 - works with both static paths and dynamic path patterns
 
+`--latest`: create a "latest" copy of each downloaded file
+- creates a copy with consistent filename: `data.json` → `latest.json`
+- works with both static paths and dynamic path patterns
+- with `--json-format both`, creates both `latest.json` and `latest.pp.json`
+- useful for automation that needs predictable filenames
+
 ### Examples
 
 #### Basic usage with static paths:
 ```bash
 ./fetchncache --config ./config/example.yaml -v --json-format both
 ```
+Creates:
+- `./cache/github-user.json` (minimized)
+- `./cache/github-user.pp.json` (pretty-printed)
+
+#### With --latest flag:
+```bash
+./fetchncache --config ./config/example.yaml --latest --json-format both -v
+```
+Creates:
+- `./cache/github-user.json` (minimized main file)
+- `./cache/github-user.pp.json` (pretty-printed main file)
+- `./cache/latest.json` (minimized latest copy)
+- `./cache/latest.pp.json` (pretty-printed latest copy)
 
 #### With dynamic path patterns:
 ```bash
 ./fetchncache --config ./config/comprehensive-test.yaml -v --json-format both
 ```
-
-This will create timestamped files like:
+Creates timestamped files like:
 - `./cache/data-2025-01-28-15-30-45-jst.json` (minimized)
 - `./cache/data-2025-01-28-15-30-45-jst.pp.json` (pretty-printed)
+
+#### Dynamic paths with --latest flag:
+```bash
+./fetchncache --config ./config/comprehensive-test.yaml --latest -v
+```
+Creates both timestamped and latest files:
+- `./cache/github-custom-agent-2025-01-28-15-30-45-jst.json` (timestamped)
+- `./cache/latest.json` (consistent latest copy)

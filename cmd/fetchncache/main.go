@@ -148,14 +148,39 @@ func (t *Target) IsStaticPath() bool {
 	return ok
 }
 
+// generateLatestPath creates a "latest" version of a file path
+// For example: "./cache/data.json" -> "./cache/latest.json"
+//             "./cache/data-timestamp.json" -> "./cache/latest.json"
+//             "./cache/data.pp.json" -> "./cache/latest.pp.json"
+func generateLatestPath(resolvedPath string) string {
+	dir := filepath.Dir(resolvedPath)
+	filename := filepath.Base(resolvedPath)
+	
+	// Handle different file extension patterns
+	if strings.Contains(filename, ".pp.json") {
+		return filepath.Join(dir, "latest.pp.json")
+	} else if strings.HasSuffix(filename, ".json") {
+		return filepath.Join(dir, "latest.json")
+	}
+	
+	// For other extensions, use the original logic
+	ext := filepath.Ext(resolvedPath)
+	if ext == "" {
+		return filepath.Join(dir, "latest")
+	}
+	
+	return filepath.Join(dir, "latest"+ext)
+}
+
 // parseFlags parses and validates command line flags
-func parseFlags() (string, bool, string) {
+func parseFlags() (string, bool, string, bool) {
 	var configPath, jsonFormat string
-	var verbose, showVersion bool
+	var verbose, showVersion, latest bool
 
 	flag.StringVar(&configPath, "config", "", "Path to YAML config file")
 	flag.BoolVar(&verbose, "v", false, "Enable verbose mode")
 	flag.StringVar(&jsonFormat, "json-format", "original", "JSON formatting: 'original', 'pretty', 'minimized', or 'both'")
+	flag.BoolVar(&latest, "latest", false, "Create a 'latest' copy of each downloaded file")
 	flag.BoolVar(&showVersion, "version", false, "Show version information")
 	flag.Parse()
 
@@ -166,20 +191,20 @@ func parseFlags() (string, bool, string) {
 
 	if configPath == "" {
 		fmt.Fprintf(os.Stderr, "Error: --config flag is required\n")
-		fmt.Fprintf(os.Stderr, "Usage: %s --config <yaml-file> [-v] [--json-format original|pretty|minimized|both] [--version]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s --config <yaml-file> [-v] [--json-format original|pretty|minimized|both] [--latest] [--version]\n", os.Args[0])
 		os.Exit(1)
 	}
 
 	validFormats := []string{"original", "pretty", "minimized", "both"}
 	for _, format := range validFormats {
 		if jsonFormat == format {
-			return configPath, verbose, jsonFormat
+			return configPath, verbose, jsonFormat, latest
 		}
 	}
 
 	fmt.Fprintf(os.Stderr, "Error: --json-format must be one of: %s\n", strings.Join(validFormats, ", "))
 	os.Exit(1)
-	return "", false, "" // unreachable
+	return "", false, "", false // unreachable
 }
 
 // loadConfig reads and parses the YAML configuration file
@@ -374,7 +399,7 @@ func setupLoggers(config Config, verbose bool) (*slog.Logger, *slog.Logger, func
 }
 
 // formatJSON handles JSON formatting based on the specified format
-func formatJSON(data []byte, format string, targetPath string) ([]byte, string, error) {
+func formatJSON(data []byte, format string, targetPath string, latest bool) ([]byte, string, error) {
 	// Skip formatting if not JSON or format is original
 	if !strings.HasSuffix(strings.ToLower(targetPath), ".json") || format == "original" {
 		return data, "", nil
@@ -395,7 +420,7 @@ func formatJSON(data []byte, format string, targetPath string) ([]byte, string, 
 		return formatted, "minimized", err
 
 	case "both":
-		return formatJSONBoth(jsonData, targetPath)
+		return formatJSONBoth(jsonData, targetPath, latest)
 
 	default:
 		return data, "", fmt.Errorf("unknown format: %s", format)
@@ -403,7 +428,7 @@ func formatJSON(data []byte, format string, targetPath string) ([]byte, string, 
 }
 
 // formatJSONBoth creates both minimized and pretty-printed versions
-func formatJSONBoth(jsonData any, targetPath string) ([]byte, string, error) {
+func formatJSONBoth(jsonData any, targetPath string, latest bool) ([]byte, string, error) {
 	minimized, err := json.Marshal(jsonData)
 	if err != nil {
 		return nil, "", err
@@ -417,6 +442,14 @@ func formatJSONBoth(jsonData any, targetPath string) ([]byte, string, error) {
 	prettyPath := strings.TrimSuffix(targetPath, ".json") + ".pp.json"
 	if err := writeFileWithDir(prettyPath, pretty); err != nil {
 		return minimized, "minimized", fmt.Errorf("writing pretty file: %w", err)
+	}
+
+	// If latest flag is set, also create latest.pp.json
+	if latest {
+		latestPrettyPath := generateLatestPath(prettyPath)
+		if err := writeFileWithDir(latestPrettyPath, pretty); err != nil {
+			return minimized, "minimized", fmt.Errorf("writing latest pretty file: %w", err)
+		}
 	}
 
 	return minimized, "minimized (with pretty version)", nil
@@ -433,7 +466,7 @@ func writeFileWithDir(path string, data []byte) error {
 }
 
 // processTarget processes a single target
-func processTarget(target Target, client *retryablehttp.Client, jsonFormat string, fileLogger, consoleLogger *slog.Logger) error {
+func processTarget(target Target, client *retryablehttp.Client, jsonFormat string, latest bool, fileLogger, consoleLogger *slog.Logger) error {
 	// Resolve path first
 	resolvedPath, err := target.GetResolvedPath()
 	if err != nil {
@@ -490,7 +523,7 @@ func processTarget(target Target, client *retryablehttp.Client, jsonFormat strin
 	}
 
 	// Format JSON if needed
-	dataToWrite, formatDesc, err := formatJSON(bodyBytes, jsonFormat, resolvedPath)
+	dataToWrite, formatDesc, err := formatJSON(bodyBytes, jsonFormat, resolvedPath, latest)
 	if err != nil {
 		fileLogger.Warn("Could not format JSON, using original", "path", resolvedPath, "error", err)
 		dataToWrite = bodyBytes
@@ -507,12 +540,26 @@ func processTarget(target Target, client *retryablehttp.Client, jsonFormat strin
 		consoleLogger.Info("Successfully wrote file", "path", resolvedPath)
 	}
 
+	// Write latest file if flag is set
+	if latest {
+		latestPath := generateLatestPath(resolvedPath)
+		if err := writeFileWithDir(latestPath, dataToWrite); err != nil {
+			// Log warning but don't fail the entire operation
+			fileLogger.Warn("Failed to write latest file", "path", latestPath, "error", err)
+			if consoleLogger != nil {
+				consoleLogger.Warn("Failed to write latest file", "path", latestPath, "error", err)
+			}
+		} else if consoleLogger != nil {
+			consoleLogger.Info("Successfully wrote latest file", "path", latestPath)
+		}
+	}
+
 	return nil
 }
 
 func main() {
 	// Parse command line flags
-	configPath, verbose, jsonFormat := parseFlags()
+	configPath, verbose, jsonFormat, latest := parseFlags()
 
 	// Load configuration
 	config, err := loadConfig(configPath)
@@ -547,7 +594,7 @@ func main() {
 			consoleLogger.Info("Processing target", "index", i+1, "total", len(config.Targets))
 		}
 
-		if err := processTarget(target, retryClient, jsonFormat, fileLogger, consoleLogger); err != nil {
+		if err := processTarget(target, retryClient, jsonFormat, latest, fileLogger, consoleLogger); err != nil {
 			fileLogger.Error("Failed to process target", "name", target.Name, "url", target.URL, "error", err)
 			continue
 		}

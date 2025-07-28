@@ -1,0 +1,5 @@
+logfile: "./log/fetchncache-test.log"
+targets:
+  - name: "test-latest"
+    url: "https://api.github.com/users/octocat"
+    path: "./cache/test-latest.json"
