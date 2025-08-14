@@ -1,0 +1,27 @@
+logfile: "./log/test-timezones.log"
+targets:
+  - name: "test-utc"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/timezone-tests/utc-{pattern}.json"
+        pattern: "DateTime-UTC-slug"
+  - name: "test-america-newyork"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/timezone-tests/ny-{pattern}.json"
+        pattern: "DateTime-America/New_York-slug"
+  - name: "test-europe-london"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/timezone-tests/london-{pattern}.json"
+        pattern: "Kitchen-Europe/London-slug"
+  - name: "test-asia-tokyo"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/timezone-tests/tokyo-{pattern}.json"
+        pattern: "DateOnly-Asia/Tokyo-slug"
+  - name: "test-australia-sydney"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/timezone-tests/sydney-{pattern}.json"
+        pattern: "Stamp-Australia/Sydney-slug"

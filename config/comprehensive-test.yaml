@@ -19,6 +19,6 @@ targets:
     url: "https://api.github.com/users/github" 
     path: 
       - string: "./cache/github-custom-agent-{pattern}.json"
-        pattern: "DateTime-JST-slug"
+        pattern: "DateTime-Asia/Tokyo-slug"
     headers:
       - "User-Agent: fetchncache-custom/1.0"

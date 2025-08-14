@@ -1,0 +1,7 @@
+logfile: "./log/test-invalid-timezone.log"
+targets:
+  - name: "test-invalid-timezone"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/invalid-{pattern}.json"
+        pattern: "DateTime-Invalid/Timezone-slug"

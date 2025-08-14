@@ -1,0 +1,7 @@
+logfile: "./log/test-utc-only.log"
+targets:
+  - name: "test-utc"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/utc-test/utc-{pattern}.json"
+        pattern: "DateTime-UTC-slug"

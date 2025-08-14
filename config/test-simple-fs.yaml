@@ -1,7 +1,0 @@
-logfile: "./log/fetchncache-test.log"
-targets:
-  - name: "test-simple-fs"
-    url: "https://api.github.com/users/octocat"
-    path: 
-      - string: "./cache/simple-fs-{pattern}.json"
-        pattern: "DATETIME_SIMPLE_FS-JST-slug"
