@@ -50,17 +50,14 @@ func generatePatternValue(pattern string) (string, error) {
 	now := time.Now()
 
 	// 2. Apply timezone
-	switch parts[1] {
-	case "JST":
-		loc, err := time.LoadLocation("Asia/Tokyo")
+	if parts[1] == "UTC" {
+		now = now.UTC()
+	} else {
+		loc, err := time.LoadLocation(parts[1])
 		if err != nil {
-			return "", fmt.Errorf("loading JST timezone: %w", err)
+			return "", fmt.Errorf("loading timezone %q: %w", parts[1], err)
 		}
 		now = now.In(loc)
-	case "UTC":
-		now = now.UTC()
-	default:
-		return "", fmt.Errorf("unsupported timezone: %s", parts[1])
 	}
 
 	// 3. Format datetime using Go time layout constants
@@ -292,11 +289,12 @@ func validatePattern(pattern string) error {
 		return fmt.Errorf("unsupported datetime format: %s (supported: DateTime, DateOnly, TimeOnly, RFC3339, Kitchen, Stamp, DATETIME_SIMPLE_FS)", parts[0])
 	}
 
-	switch parts[1] {
-	case "JST", "UTC":
-		// Valid timezones
-	default:
-		return fmt.Errorf("unsupported timezone: %s (supported: JST, UTC)", parts[1])
+	// Validate timezone component
+	if parts[1] != "UTC" {
+		_, err := time.LoadLocation(parts[1])
+		if err != nil {
+			return fmt.Errorf("invalid timezone %q: %w", parts[1], err)
+		}
 	}
 
 	switch parts[2] {
