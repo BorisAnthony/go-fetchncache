@@ -108,12 +108,17 @@ path:
 | GMT/BST | Europe/London | British Time |  
 
 **Processing Options**:
-- **slug**: Lowercase, filename-safe formatting with timezone suffix
+- **slug**: Filename-safe formatting using gosimple/slug library
+  - Converts to lowercase for consistency
+  - Replaces spaces, colons, and special characters with hyphens
+  - Handles Unicode characters properly
+  - Creates truly filename-safe strings
 
 **Example outputs**:
 - `DateTime-Asia/Tokyo-slug` → `./cache/data-2025-01-28-15-30-45.json`
-- `DateOnly-UTC-slug` → `./cache/data-2025-01-28-utc.json`
-- `Kitchen-America/New_York-slug` → `./cache/data-3-04pm.json`
+- `DateOnly-UTC-slug` → `./cache/data-2025-01-28.json`
+- `Kitchen-America/New_York-slug` → `./cache/data-8-23am.json`
+- `RFC3339-Europe/London-slug` → `./cache/data-2025-08-14t13-23-28-01-00.json`
 
 `headers` are optional.
 

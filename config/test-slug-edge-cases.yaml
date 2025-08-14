@@ -1,0 +1,12 @@
+logfile: "./log/test-slug-edge-cases.log"
+targets:
+  - name: "test-unicode-timezone"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/edge-tests/unicode-{pattern}.json"
+        pattern: "Kitchen-America/New_York-slug"
+  - name: "test-complex-timezone"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/edge-tests/complex-{pattern}.json"
+        pattern: "RFC3339-America/Argentina/Buenos_Aires-slug"

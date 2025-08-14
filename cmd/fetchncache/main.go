@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gosimple/slug"
 	"github.com/hashicorp/go-retryablehttp"
 	"gopkg.in/yaml.v3"
 )
@@ -86,10 +87,8 @@ func generatePatternValue(pattern string) (string, error) {
 	// 4. Apply processing
 	switch parts[2] {
 	case "slug":
-		// Make filename-safe: replace spaces and colons, convert to lowercase
-		// formatted = strings.ReplaceAll(formatted, " ", "-")
-		formatted = strings.ReplaceAll(formatted, ":", "-")
-		// formatted = strings.ToLower(formatted + "-" + strings.ToLower(parts[1]))
+		// Use proper slugification library for filename-safe formatting
+		formatted = slug.Make(formatted)
 	default:
 		return "", fmt.Errorf("unsupported processing: %s", parts[2])
 	}

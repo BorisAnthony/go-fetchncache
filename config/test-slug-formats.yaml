@@ -1,0 +1,32 @@
+logfile: "./log/test-slug-formats.log"
+targets:
+  - name: "test-datetime-slug"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/slug-tests/datetime-{pattern}.json"
+        pattern: "DateTime-UTC-slug"
+  - name: "test-kitchen-slug"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/slug-tests/kitchen-{pattern}.json"
+        pattern: "Kitchen-America/New_York-slug"
+  - name: "test-stamp-slug"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/slug-tests/stamp-{pattern}.json"
+        pattern: "Stamp-Europe/London-slug"
+  - name: "test-rfc3339-slug"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/slug-tests/rfc3339-{pattern}.json"
+        pattern: "RFC3339-Asia/Tokyo-slug"
+  - name: "test-dateonly-slug"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/slug-tests/dateonly-{pattern}.json"
+        pattern: "DateOnly-Australia/Sydney-slug"
+  - name: "test-timeonly-slug"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/slug-tests/timeonly-{pattern}.json"
+        pattern: "TimeOnly-UTC-slug"
