@@ -61,7 +61,7 @@ targets:
     url: "https://api.github.com/users/github"
     path: 
       - string: "./cache/github-{pattern}.json"
-        pattern: "DateTime-JST-slug"
+        pattern: "DateTime-Asia/Tokyo-slug"
     headers:
       - "User-Agent: fetchncache/1.0"
 ```
@@ -79,7 +79,7 @@ path: "./cache/data.json"
 ```yaml
 path: 
   - string: "./cache/data-{pattern}.json"
-    pattern: "DateTime-JST-slug"
+    pattern: "DateTime-Asia/Tokyo-slug"
 ```
 
 **Pattern Format**: `DateTimeFormat-Timezone-Processing`
@@ -93,16 +93,27 @@ path:
 - **Stamp**: `Jan _2 15:04:05` → `jan-2-15-04-05`
 
 **Timezone Options**:
-- **JST**: Asia/Tokyo timezone
-- **UTC**: Coordinated Universal Time  
+- **UTC**: Coordinated Universal Time (special case, always supported)
+- **Any valid IANA timezone name**: e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`, `Australia/Sydney`
+- **NOT supported**: 3-4 letter abbreviations (EST, CET, JST, PST, etc.) - use full IANA names instead
+
+**Common Timezone Mappings**:
+| ❌ Abbreviation | ✅ IANA Name | Description |
+|---|---|---|
+| EST/EDT | America/New_York | Eastern Time |
+| CST/CDT | America/Chicago | Central Time |
+| PST/PDT | America/Los_Angeles | Pacific Time |
+| CET/CEST | Europe/Berlin | Central European Time |
+| JST | Asia/Tokyo | Japan Standard Time |
+| GMT/BST | Europe/London | British Time |  
 
 **Processing Options**:
 - **slug**: Lowercase, filename-safe formatting with timezone suffix
 
 **Example outputs**:
-- `DateTime-JST-slug` → `./cache/data-2025-01-28-15-30-45-jst.json`
+- `DateTime-Asia/Tokyo-slug` → `./cache/data-2025-01-28-15-30-45.json`
 - `DateOnly-UTC-slug` → `./cache/data-2025-01-28-utc.json`
-- `Kitchen-JST-slug` → `./cache/data-3-04pm-jst.json`
+- `Kitchen-America/New_York-slug` → `./cache/data-3-04pm.json`
 
 `headers` are optional.
 
@@ -114,6 +125,11 @@ See more example YAML files in `./config`.
 `-v`: verbose mode (_`debug` & `info` console logging_)
 
 `--config`: (required) path to config 
+
+`-d` / `--delay`: delay in seconds between targets (default: 0)
+- Useful for rate limiting API requests
+- Applies delay between all targets regardless of success/failure
+- No delay after the final target
 
 `--json-format`: one of `original`, `pretty`, `minimized` or `both`
 - if called without, will default to `original`
@@ -136,6 +152,12 @@ Creates:
 - `./cache/github-user.json` (minimized)
 - `./cache/github-user.pp.json` (pretty-printed)
 
+#### With delay between targets:
+```bash
+./fetchncache --config ./config/weather-test.yaml -v -d 5
+```
+Processes 6 weather API targets with 5-second delays between each request.
+
 #### With --latest flag:
 ```bash
 ./fetchncache --config ./config/example.yaml --latest --json-format both -v
@@ -151,13 +173,13 @@ Creates:
 ./fetchncache --config ./config/comprehensive-test.yaml -v --json-format both
 ```
 Creates timestamped files like:
-- `./cache/data-2025-01-28-15-30-45-jst.json` (minimized)
-- `./cache/data-2025-01-28-15-30-45-jst.pp.json` (pretty-printed)
+- `./cache/data-2025-01-28-15-30-45.json` (minimized)
+- `./cache/data-2025-01-28-15-30-45.pp.json` (pretty-printed)
 
 #### Dynamic paths with --latest flag:
 ```bash
 ./fetchncache --config ./config/comprehensive-test.yaml --latest -v
 ```
 Creates both timestamped and latest files:
-- `./cache/github-custom-agent-2025-01-28-15-30-45-jst.json` (timestamped)
+- `./cache/github-custom-agent-2025-01-28-15-30-45.json` (timestamped)
 - `./cache/latest.json` (consistent latest copy)
