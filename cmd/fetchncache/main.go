@@ -173,14 +173,17 @@ func generateLatestPath(resolvedPath string) string {
 }
 
 // parseFlags parses and validates command line flags
-func parseFlags() (string, bool, string, bool) {
+func parseFlags() (string, bool, string, bool, int) {
 	var configPath, jsonFormat string
 	var verbose, showVersion, latest bool
+	var delay int
 
 	flag.StringVar(&configPath, "config", "", "Path to YAML config file")
 	flag.BoolVar(&verbose, "v", false, "Enable verbose mode")
 	flag.StringVar(&jsonFormat, "json-format", "original", "JSON formatting: 'original', 'pretty', 'minimized', or 'both'")
 	flag.BoolVar(&latest, "latest", false, "Create a 'latest' copy of each downloaded file")
+	flag.IntVar(&delay, "d", 0, "Delay in seconds between targets")
+	flag.IntVar(&delay, "delay", 0, "Delay in seconds between targets")
 	flag.BoolVar(&showVersion, "version", false, "Show version information")
 	flag.Parse()
 
@@ -191,20 +194,25 @@ func parseFlags() (string, bool, string, bool) {
 
 	if configPath == "" {
 		fmt.Fprintf(os.Stderr, "Error: --config flag is required\n")
-		fmt.Fprintf(os.Stderr, "Usage: %s --config <yaml-file> [-v] [--json-format original|pretty|minimized|both] [--latest] [--version]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s --config <yaml-file> [-v] [-d|--delay <seconds>] [--json-format original|pretty|minimized|both] [--latest] [--version]\n", os.Args[0])
+		os.Exit(1)
+	}
+
+	if delay < 0 {
+		fmt.Fprintf(os.Stderr, "Error: delay must be non-negative\n")
 		os.Exit(1)
 	}
 
 	validFormats := []string{"original", "pretty", "minimized", "both"}
 	for _, format := range validFormats {
 		if jsonFormat == format {
-			return configPath, verbose, jsonFormat, latest
+			return configPath, verbose, jsonFormat, latest, delay
 		}
 	}
 
 	fmt.Fprintf(os.Stderr, "Error: --json-format must be one of: %s\n", strings.Join(validFormats, ", "))
 	os.Exit(1)
-	return "", false, "", false // unreachable
+	return "", false, "", false, 0 // unreachable
 }
 
 // loadConfig reads and parses the YAML configuration file
@@ -559,7 +567,7 @@ func processTarget(target Target, client *retryablehttp.Client, jsonFormat strin
 
 func main() {
 	// Parse command line flags
-	configPath, verbose, jsonFormat, latest := parseFlags()
+	configPath, verbose, jsonFormat, latest, delay := parseFlags()
 
 	// Load configuration
 	config, err := loadConfig(configPath)
@@ -596,7 +604,14 @@ func main() {
 
 		if err := processTarget(target, retryClient, jsonFormat, latest, fileLogger, consoleLogger); err != nil {
 			fileLogger.Error("Failed to process target", "name", target.Name, "url", target.URL, "error", err)
-			continue
+		}
+
+		// Add delay between targets (but not after the last one)
+		if delay > 0 && i < len(config.Targets)-1 {
+			if consoleLogger != nil {
+				consoleLogger.Info("Waiting before next target", "delay_seconds", delay)
+			}
+			time.Sleep(time.Duration(delay) * time.Second)
 		}
 	}
 
