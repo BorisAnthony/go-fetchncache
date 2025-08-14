@@ -1,0 +1,17 @@
+logfile: "./log/test-none-processing.log"
+targets:
+  - name: "test-none-datetime"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/none-tests/datetime-{pattern}.json"
+        pattern: "DateTime-UTC-none"
+  - name: "test-none-kitchen"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/none-tests/kitchen-{pattern}.json"
+        pattern: "Kitchen-America/New_York-none"
+  - name: "test-none-rfc3339"
+    url: "https://api.github.com/users/octocat"
+    path: 
+      - string: "./cache/none-tests/rfc3339-{pattern}.json"
+        pattern: "RFC3339-Europe/London-none"

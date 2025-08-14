@@ -89,6 +89,9 @@ func generatePatternValue(pattern string) (string, error) {
 	case "slug":
 		// Use proper slugification library for filename-safe formatting
 		formatted = slug.Make(formatted)
+	case "none":
+		// No processing
+		// formatted = formatted
 	default:
 		return "", fmt.Errorf("unsupported processing: %s", parts[2])
 	}
@@ -297,10 +300,10 @@ func validatePattern(pattern string) error {
 	}
 
 	switch parts[2] {
-	case "slug":
+	case "slug", "none":
 		// Valid processing
 	default:
-		return fmt.Errorf("unsupported processing: %s (supported: slug)", parts[2])
+		return fmt.Errorf("unsupported processing: %s (supported: slug, none)", parts[2])
 	}
 
 	return nil

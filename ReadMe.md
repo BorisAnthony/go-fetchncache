@@ -64,6 +64,11 @@ targets:
         pattern: "DateTime-Asia/Tokyo-slug"
     headers:
       - "User-Agent: fetchncache/1.0"
+  - name: "raw-timestamp-example"
+    url: "https://api.github.com/users/github"
+    path: 
+      - string: "./cache/github-{pattern}.json"
+        pattern: "RFC3339-UTC-none"
 ```
 
 ### Path Configuration
@@ -113,12 +118,22 @@ path:
   - Replaces spaces, colons, and special characters with hyphens
   - Handles Unicode characters properly
   - Creates truly filename-safe strings
+- **none**: No processing applied
+  - Preserves original timestamp formatting
+  - Maintains original case, spaces, and special characters
+  - Use with caution on filesystems that don't support special characters
 
 **Example outputs**:
+
+*With slug processing:*
 - `DateTime-Asia/Tokyo-slug` → `./cache/data-2025-01-28-15-30-45.json`
-- `DateOnly-UTC-slug` → `./cache/data-2025-01-28.json`
 - `Kitchen-America/New_York-slug` → `./cache/data-8-23am.json`
 - `RFC3339-Europe/London-slug` → `./cache/data-2025-08-14t13-23-28-01-00.json`
+
+*With none processing:*
+- `DateTime-UTC-none` → `./cache/data-2025-01-28 15:30:45.json`
+- `Kitchen-America/New_York-none` → `./cache/data-8:23AM.json`
+- `RFC3339-Europe/London-none` → `./cache/data-2025-08-14T13:23:28+01:00.json`
 
 `headers` are optional.
 
