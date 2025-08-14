@@ -1,8 +1,15 @@
-_Project/
 .DS_Store
-.archive/
+_project/
+_rnd/
+
+# Yeah yeah yeah
 .claude/
+CLAUDE.md
+
+# Local build/test
 cache/
 dist/
 log/
-CLAUDE.md
+fetchncache
+# but don't ignore the source directory!
+!fetchncache/
